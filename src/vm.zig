@@ -8,22 +8,42 @@ const Chunk = @import("chunk.zig").Chunk;
 const OpCode = @import("chunk.zig").OpCode;
 
 const Value = @import("value.zig").Value;
+const ObjType = @import("object.zig").ObjType;
+const ObjAllocator = @import("object.zig").ObjAllocator;
+const ObjString = @import("object.zig").ObjString;
 
 pub const InterpretError = error{ out_of_memory, compile, runtime };
 
 pub const VM = struct {
+    pub const Mem = struct {
+        allocator: std.mem.Allocator,
+        obj_allocator: ObjAllocator,
+
+        pub fn init(allocator: std.mem.Allocator) Mem {
+            return Mem{ .allocator = allocator, .obj_allocator = ObjAllocator.init(allocator) };
+        }
+        pub fn deinit(self: *Mem) void {
+            self.obj_allocator.deinit();
+        }
+
+        pub fn createObj(self: *Mem, comptime ot: ObjType) !*ObjAllocator.Subtype(ot) {
+            return self.obj_allocator.create(ot);
+        }
+    };
+
     ip: [*]const u8,
     stack: Stack,
     chunk: *const Chunk,
 
-    allocator: std.mem.Allocator,
+    mem: Mem,
 
     pub fn init(allocator: std.mem.Allocator) !VM {
-        return VM{ .ip = undefined, .stack = try Stack.init(allocator, 9), .chunk = undefined, .allocator = allocator };
+        return VM{ .ip = undefined, .stack = try Stack.init(allocator, 9), .chunk = undefined, .mem = Mem.init(allocator) };
     }
 
-    pub fn deinit(self: VM) void {
-        self.stack.deinit(self.allocator);
+    pub fn deinit(self: *VM) void {
+        self.mem.deinit();
+        self.stack.deinit(self.mem.allocator);
     }
 
     pub fn interpret(self: *VM, source: []const u8) InterpretError!void {
@@ -34,10 +54,10 @@ pub const VM = struct {
             self.chunk = undefined;
         }
 
-        var chunk = Chunk.init(self.allocator);
+        var chunk = Chunk.init(self.mem.allocator);
         defer chunk.deinit();
 
-        if (!(compile(source, &chunk) catch return InterpretError.out_of_memory)) {
+        if (!(compile(&self.mem, source, &chunk) catch return InterpretError.out_of_memory)) {
             return InterpretError.compile;
         }
 
@@ -91,13 +111,20 @@ pub const VM = struct {
                     try self.binaryOp(bool, op);
                 },
                 .ADD => {
-                    const op = struct {
-                        fn op(a: f64, b: f64) f64 {
-                            return a + b;
-                        }
-                    }.op;
-
-                    try self.binaryOp(f64, op);
+                    if (self.stack.peek(0).isNumber() and self.stack.peek(1).isNumber()) {
+                        const b = self.stack.pop().asNumber();
+                        const a = self.stack.pop().asNumber();
+                        self.stack.push(Value.val(a + b));
+                    } else if (self.stack.peek(0).isString() and self.stack.peek(1).isString()) {
+                        const b = self.stack.pop().asString();
+                        const a = self.stack.pop().asString();
+                        const c = std.mem.concat(self.mem.allocator, u8, &.{ a, b }) catch return InterpretError.out_of_memory;
+                        const c_obj = self.mem.createObj(.string) catch return InterpretError.out_of_memory;
+                        c_obj.string = c;
+                        self.stack.push(Value.val(c_obj));
+                    } else {
+                        return self.runtimeError("operands must be two numbers or two strings", .{});
+                    }
                 },
                 .SUB => {
                     const op = struct {
@@ -176,6 +203,8 @@ pub const VM = struct {
     }
 
     fn runtimeError(self: *VM, comptime fmt: []const u8, args: anytype) InterpretError {
+        @setCold(true);
+
         stderr.print(fmt, args) catch {};
         stderr.print("\n", .{}) catch {};
 
@@ -209,14 +238,14 @@ const Stack = struct {
         self.top = bottomPtr(self.storage);
     }
 
-    pub fn peek(self: *Stack, distance: usize) Value {
+    pub inline fn peek(self: *Stack, distance: usize) Value {
         return self.top[1 + distance];
     }
-    pub fn push(self: *Stack, value: Value) void {
+    pub inline fn push(self: *Stack, value: Value) void {
         self.top[0] = value;
         self.top -= 1;
     }
-    pub fn pop(self: *Stack) Value {
+    pub inline fn pop(self: *Stack) Value {
         self.top += 1;
         return self.top[0];
     }

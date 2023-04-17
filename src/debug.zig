@@ -46,11 +46,7 @@ pub fn disassembleInstruction(chunk: *const Chunk, off: usize) usize {
 }
 
 pub fn printValue(value: Value) void {
-    switch (value) {
-        .nil => print("nil", .{}),
-        .boolean => |b| print("{}", .{b}),
-        .number => |n| print("{d}", .{n}),
-    }
+    @import("value.zig").printValue(std.io.getStdErr().writer(), value);
 }
 
 fn printOpName(op: OpCode) void {

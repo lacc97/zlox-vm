@@ -6,6 +6,8 @@ const print = std.debug.print;
 
 const debug = @import("debug.zig");
 
+const VM = @import("vm.zig").VM;
+
 const Chunk = @import("chunk.zig").Chunk;
 const OpCode = @import("chunk.zig").OpCode;
 
@@ -14,11 +16,14 @@ const Token = @import("scanner.zig").Token;
 const TokenType = @import("scanner.zig").TokenType;
 
 const Value = @import("value.zig").Value;
+const ObjAllocator = @import("object.zig").ObjAllocator;
+const ObjString = @import("object.zig").ObjString;
 
 const Compiler = struct {
     current: Token,
     previous: Token,
 
+    mem: *VM.Mem,
     chunk: *Chunk,
 
     scanner: Scanner,
@@ -73,6 +78,7 @@ const Compiler = struct {
         rules.set(.GREATER_EQUAL, ExpressionRule{ .prefix = null, .infix = binary, .precedence = .COMPARISON });
         rules.set(.LESS, ExpressionRule{ .prefix = null, .infix = binary, .precedence = .COMPARISON });
         rules.set(.LESS_EQUAL, ExpressionRule{ .prefix = null, .infix = binary, .precedence = .COMPARISON });
+        rules.set(.STRING, ExpressionRule{ .prefix = string, .infix = null, .precedence = .NONE });
         rules.set(.NUMBER, ExpressionRule{ .prefix = number, .infix = null, .precedence = .NONE });
         rules.set(.FALSE, ExpressionRule{ .prefix = literal, .infix = null, .precedence = .NONE });
         rules.set(.NIL, ExpressionRule{ .prefix = literal, .infix = null, .precedence = .NONE });
@@ -81,8 +87,8 @@ const Compiler = struct {
         break :gen_rules rules;
     };
 
-    pub fn init(source: []const u8, chunk: *Chunk) Compiler {
-        return Compiler{ .current = Token{ .tt = .ERROR, .line = 0, .lexeme = "" }, .previous = undefined, .chunk = chunk, .scanner = Scanner.init(source), .had_error = false, .in_panic = false, .tabs = 0 };
+    pub fn init(mem: *VM.Mem, source: []const u8, chunk: *Chunk) Compiler {
+        return Compiler{ .current = Token{ .tt = .ERROR, .line = 0, .lexeme = "" }, .previous = undefined, .mem = mem, .chunk = chunk, .scanner = Scanner.init(source), .had_error = false, .in_panic = false, .tabs = 0 };
     }
     pub fn deinit(self: *Compiler) bool {
         self.emitOp(.RET) catch {
@@ -222,6 +228,12 @@ const Compiler = struct {
 
         try self.emitConstant(value);
     }
+    fn string(self: *Compiler) !void {
+        const s = try self.mem.allocator.dupe(u8, self.previous.lexeme[1..(self.previous.lexeme.len - 1)]);
+        const s_obj = try self.mem.createObj(.string);
+        s_obj.string = s;
+        try self.emitConstant(Value.val(s_obj));
+    }
     fn literal(self: *Compiler) !void {
         switch (self.previous.tt) {
             .FALSE => try self.emitOp(.FALSE),
@@ -308,8 +320,8 @@ const Compiler = struct {
     }
 };
 
-pub fn compile(source: []const u8, chunk: *Chunk) !bool {
-    var compiler = Compiler.init(source, chunk);
+pub fn compile(mem: *VM.Mem, source: []const u8, chunk: *Chunk) !bool {
+    var compiler = Compiler.init(mem, source, chunk);
 
     compiler.advance();
     try compiler.expression();
