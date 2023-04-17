@@ -56,23 +56,23 @@ pub const VM = struct {
 
             const instruction = @intToEnum(OpCode, self.readU8());
             switch (instruction) {
-                .CONSTANT => {
+                .CONST => {
                     const constant = self.readConstant();
                     self.stack.push(constant);
                 },
-                .CONSTANT_LONG => {
+                .CONST_LONG => {
                     const constant = self.readConstantLong();
                     self.stack.push(constant);
                 },
                 .NIL => self.stack.push(Value.val(.{})),
                 .TRUE => self.stack.push(Value.val(true)),
                 .FALSE => self.stack.push(Value.val(false)),
-                .EQUAL => {
+                .EQ => {
                     const b = self.stack.pop();
                     const a = self.stack.pop();
                     self.stack.push(Value.val(a.equals(b)));
                 },
-                .GREATER => {
+                .GT => {
                     const op = struct {
                         fn op(a: f64, b: f64) bool {
                             return a > b;
@@ -81,7 +81,7 @@ pub const VM = struct {
 
                     try self.binaryOp(bool, op);
                 },
-                .LESS => {
+                .LT => {
                     const op = struct {
                         fn op(a: f64, b: f64) bool {
                             return a < b;
@@ -99,7 +99,7 @@ pub const VM = struct {
 
                     try self.binaryOp(f64, op);
                 },
-                .SUBTRACT => {
+                .SUB => {
                     const op = struct {
                         fn op(a: f64, b: f64) f64 {
                             return a - b;
@@ -108,7 +108,7 @@ pub const VM = struct {
 
                     try self.binaryOp(f64, op);
                 },
-                .MULTIPLY => {
+                .MUL => {
                     const op = struct {
                         fn op(a: f64, b: f64) f64 {
                             return a * b;
@@ -117,7 +117,7 @@ pub const VM = struct {
 
                     try self.binaryOp(f64, op);
                 },
-                .DIVIDE => {
+                .DIV => {
                     const op = struct {
                         fn op(a: f64, b: f64) f64 {
                             return a / b;
@@ -129,13 +129,13 @@ pub const VM = struct {
                 .NOT => {
                     self.stack.push(Value.val(self.stack.pop().isFalsey()));
                 },
-                .NEGATE => {
+                .NEG => {
                     if (!self.stack.peek(0).isNumber()) {
                         return self.runtimeError("operand must be a number", .{});
                     }
                     self.stack.push(Value.val(-self.stack.pop().asNumber()));
                 },
-                .RETURN => {
+                .RET => {
                     debug.printValue(self.stack.pop());
                     std.debug.print("\n", .{});
                     return;

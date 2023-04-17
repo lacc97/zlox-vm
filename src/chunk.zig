@@ -4,21 +4,21 @@ const Value = @import("value.zig").Value;
 const ValueArray = @import("value.zig").ValueArray;
 
 pub const OpCode = enum(u8) {
-    CONSTANT,
-    CONSTANT_LONG,
+    CONST,
+    CONST_LONG,
     NIL,
     TRUE,
     FALSE,
-    EQUAL,
-    GREATER,
-    LESS,
+    EQ,
+    GT,
+    LT,
     ADD,
-    SUBTRACT,
-    MULTIPLY,
-    DIVIDE,
+    SUB,
+    MUL,
+    DIV,
     NOT,
-    NEGATE,
-    RETURN,
+    NEG,
+    RET,
     _,
 };
 
@@ -72,10 +72,10 @@ pub const Chunk = struct {
 
         const const_idx = self.constants.items.len - 1;
         if (const_idx > 255) {
-            const bytes = [_]u8{@enumToInt(OpCode.CONSTANT_LONG)} ++ std.mem.toBytes(@intCast(u32, const_idx));
+            const bytes = [_]u8{@enumToInt(OpCode.CONST_LONG)} ++ std.mem.toBytes(@intCast(u32, const_idx));
             try self.write(&bytes, line);
         } else {
-            const bytes = [_]u8{@enumToInt(OpCode.CONSTANT)} ++ [_]u8{@intCast(u8, const_idx)};
+            const bytes = [_]u8{@enumToInt(OpCode.CONST)} ++ [_]u8{@intCast(u8, const_idx)};
             try self.write(&bytes, line);
         }
         return const_idx;

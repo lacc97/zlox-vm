@@ -36,8 +36,8 @@ pub fn disassembleInstruction(chunk: *const Chunk, off: usize) usize {
 
     const instruction = chunk.code.items(.byte)[off];
     switch (@intToEnum(OpCode, instruction)) {
-        .CONSTANT, .CONSTANT_LONG => |constant_op| return constantInstruction(constants, bytes, constant_op, off),
-        .NIL, .TRUE, .FALSE, .EQUAL, .GREATER, .LESS, .ADD, .SUBTRACT, .MULTIPLY, .DIVIDE, .NOT, .NEGATE, .RETURN => |simple_op| return simpleInstruction(constants, bytes, simple_op, off),
+        .CONST, .CONST_LONG => |constant_op| return constantInstruction(constants, bytes, constant_op, off),
+        .NIL, .TRUE, .FALSE, .EQ, .GT, .LT, .ADD, .SUB, .MUL, .DIV, .NOT, .NEG, .RET => |simple_op| return simpleInstruction(constants, bytes, simple_op, off),
         _ => {
             std.debug.print("unknown opcode {d}\n", .{instruction});
             return off + 1;
@@ -54,7 +54,7 @@ pub fn printValue(value: Value) void {
 }
 
 fn printOpName(op: OpCode) void {
-    std.debug.print("{s:->20}", .{@tagName(op)});
+    std.debug.print("{s:-<24}", .{@tagName(op)});
 }
 
 fn constantInstruction(constants: []const Value, bytes: []const u8, op: OpCode, off: usize) usize {
@@ -62,11 +62,11 @@ fn constantInstruction(constants: []const Value, bytes: []const u8, op: OpCode, 
 
     const const_idx = idx_calc: {
         switch (op) {
-            .CONSTANT => {
+            .CONST => {
                 next_off += 1;
                 break :idx_calc @as(usize, bytes[next_off - 1]);
             },
-            .CONSTANT_LONG => {
+            .CONST_LONG => {
                 const idx_bytes = bytes[next_off..];
                 next_off += 4;
                 break :idx_calc @as(usize, std.mem.bytesToValue(u32, idx_bytes[0..4]));
@@ -75,7 +75,7 @@ fn constantInstruction(constants: []const Value, bytes: []const u8, op: OpCode, 
         }
     };
     printOpName(op);
-    std.debug.print(" {d:8} '", .{const_idx});
+    std.debug.print("-{d:->8} '", .{const_idx});
     printValue(constants[const_idx]);
     std.debug.print("'\n", .{});
     return next_off;

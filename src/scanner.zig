@@ -42,7 +42,7 @@ pub const TokenType = enum(u8) {
     NIL,
     OR,
     PRINT,
-    RETURN,
+    RET,
     SUPER,
     THIS,
     TRUE,
@@ -194,7 +194,7 @@ pub const Scanner = struct {
                     'n' => return checkKeyword(lexeme[1..], "il", .NIL),
                     'o' => return checkKeyword(lexeme[1..], "r", .OR),
                     'p' => return checkKeyword(lexeme[1..], "rint", .PRINT),
-                    'r' => return checkKeyword(lexeme[1..], "eturn", .RETURN),
+                    'r' => return checkKeyword(lexeme[1..], "eturn", .RET),
                     's' => return checkKeyword(lexeme[1..], "uper", .SUPER),
                     't' => {
                         if (lexeme.len > 1) {

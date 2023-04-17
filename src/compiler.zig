@@ -85,7 +85,7 @@ const Compiler = struct {
         return Compiler{ .current = Token{ .tt = .ERROR, .line = 0, .lexeme = "" }, .previous = undefined, .chunk = chunk, .scanner = Scanner.init(source), .had_error = false, .in_panic = false, .tabs = 0 };
     }
     pub fn deinit(self: *Compiler) bool {
-        self.emitOp(.RETURN) catch {
+        self.emitOp(.RET) catch {
             self.had_error = true;
         };
 
@@ -246,7 +246,7 @@ const Compiler = struct {
         try self.precedence(.UNARY);
 
         switch (op) {
-            .MINUS => try self.emitOp(.NEGATE),
+            .MINUS => try self.emitOp(.NEG),
             .BANG => try self.emitOp(.NOT),
             else => unreachable,
         }
@@ -263,24 +263,24 @@ const Compiler = struct {
 
         switch (op) {
             .BANG_EQUAL => {
-                try self.emitOp(.EQUAL);
+                try self.emitOp(.EQ);
                 try self.emitOp(.NOT);
             },
-            .EQUAL_EQUAL => try self.emitOp(.EQUAL),
-            .GREATER => try self.emitOp(.GREATER),
+            .EQUAL_EQUAL => try self.emitOp(.EQ),
+            .GREATER => try self.emitOp(.GT),
             .GREATER_EQUAL => {
-                try self.emitOp(.LESS);
+                try self.emitOp(.LT);
                 try self.emitOp(.NOT);
             },
-            .LESS => try self.emitOp(.LESS),
+            .LESS => try self.emitOp(.LT),
             .LESS_EQUAL => {
-                try self.emitOp(.GREATER);
+                try self.emitOp(.GT);
                 try self.emitOp(.NOT);
             },
             .PLUS => try self.emitOp(.ADD),
-            .MINUS => try self.emitOp(.SUBTRACT),
-            .STAR => try self.emitOp(.MULTIPLY),
-            .SLASH => try self.emitOp(.DIVIDE),
+            .MINUS => try self.emitOp(.SUB),
+            .STAR => try self.emitOp(.MUL),
+            .SLASH => try self.emitOp(.DIV),
             else => unreachable,
         }
     }
