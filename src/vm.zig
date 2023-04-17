@@ -24,14 +24,15 @@ pub const VM = struct {
         self.stack.deinit(self.allocator);
     }
 
-    pub fn interpret(self: *VM, chunk: *const Chunk) !void {
+    pub fn interpret(self: *VM, source: []const u8) !void {
         defer {
             self.stack.reset();
             self.chunk = undefined;
         }
 
-        self.chunk = chunk;
-        self.ip = chunk.code.items(.byte).ptr;
+        var chunk = try @import("compiler.zig").compile(source);
+        self.chunk = &chunk;
+        self.ip = self.chunk.code.items(.byte).ptr;
 
         try self.run();
     }
