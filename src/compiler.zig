@@ -26,6 +26,8 @@ const Compiler = struct {
     had_error: bool,
     in_panic: bool,
 
+    tabs: usize,
+
     const Precedence = enum(u8) {
         NONE,
         ASSIGN,
@@ -70,7 +72,7 @@ const Compiler = struct {
     };
 
     pub fn init(source: []const u8, chunk: *Chunk) Compiler {
-        return Compiler{ .current = Token{ .tt = .ERROR, .line = 0, .lexeme = "" }, .previous = undefined, .chunk = chunk, .scanner = Scanner.init(source), .had_error = false, .in_panic = false };
+        return Compiler{ .current = Token{ .tt = .ERROR, .line = 0, .lexeme = "" }, .previous = undefined, .chunk = chunk, .scanner = Scanner.init(source), .had_error = false, .in_panic = false, .tabs = 0 };
     }
     pub fn deinit(self: *Compiler) bool {
         self.emitOp(.RETURN) catch {
@@ -130,7 +132,52 @@ const Compiler = struct {
         };
     }
 
+    fn trace(self: *Compiler, comptime fn_name: []const u8) void {
+        if (comptime debug.trace_expression_parsing) {
+            for (0..self.tabs) |_| {
+                print(" ", .{});
+            }
+            print("{s}\n", .{fn_name});
+            self.tabs += 1;
+        }
+    }
+    fn traceValue(self: *Compiler, comptime fn_name: []const u8, n: Value) void {
+        if (comptime debug.trace_expression_parsing) {
+            for (0..self.tabs) |_| {
+                print(" ", .{});
+            }
+            print("{s} ({d})\n", .{ fn_name, n });
+            self.tabs += 1;
+        }
+    }
+    fn traceOp(self: *Compiler, comptime fn_name: []const u8, op: TokenType) void {
+        if (comptime debug.trace_expression_parsing) {
+            for (0..self.tabs) |_| {
+                print(" ", .{});
+            }
+            print("{s} ({s})\n", .{ fn_name, @tagName(op) });
+            self.tabs += 1;
+        }
+    }
+    fn tracePrecedence(self: *Compiler, comptime fn_name: []const u8, p: Precedence) void {
+        if (comptime debug.trace_expression_parsing) {
+            for (0..self.tabs) |_| {
+                print(" ", .{});
+            }
+            print("{s} ({s})\n", .{ fn_name, @tagName(p) });
+            self.tabs += 1;
+        }
+    }
+    fn untrace(self: *Compiler) void {
+        if (comptime debug.trace_expression_parsing) {
+            self.tabs -= 1;
+        }
+    }
+
     fn precedence(self: *Compiler, p: Precedence) !void {
+        self.tracePrecedence("precedence", p);
+        defer self.untrace();
+
         self.advance();
 
         if (getRule(self.previous.tt).prefix) |prefixRule| {
@@ -150,18 +197,31 @@ const Compiler = struct {
     }
 
     fn expression(self: *Compiler) !void {
+        self.trace("expression");
+        defer self.untrace();
+
         try self.precedence(.ASSIGN);
     }
     fn number(self: *Compiler) !void {
         const value = std.fmt.parseFloat(f64, self.previous.lexeme) catch unreachable;
+
+        self.traceValue("number", value);
+        defer self.untrace();
+
         try self.emitConstant(value);
     }
     fn grouping(self: *Compiler) !void {
+        self.trace("grouping");
+        defer self.untrace();
+
         try self.expression();
         self.consume(.RIGHT_PAREN, "expected ')' after expression");
     }
     fn unary(self: *Compiler) !void {
         const op = self.previous.tt;
+
+        self.traceOp("unary", op);
+        defer self.untrace();
 
         try self.precedence(.UNARY);
 
@@ -172,6 +232,9 @@ const Compiler = struct {
     }
     fn binary(self: *Compiler) !void {
         const op = self.previous.tt;
+        self.traceOp("binary", op);
+        defer self.untrace();
+
         const rule = getRule(op);
 
         // Parse right hand side (left hand side has already been parsed).

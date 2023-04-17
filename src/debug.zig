@@ -5,8 +5,10 @@ const Chunk = @import("chunk.zig").Chunk;
 
 const Value = @import("value.zig").Value;
 
-pub const trace_execution = @import("build_options").debug_trace_execution;
-pub const print_code = @import("build_options").debug_print_code;
+const build_options = @import("build_options");
+pub const trace_execution = build_options.debug_trace_execution;
+pub const print_code = build_options.debug_print_code;
+pub const trace_expression_parsing = build_options.debug_trace_expression_parsing;
 
 pub fn disassemble(chunk: *Chunk, name: []const u8) void {
     std.debug.print("== {s} == \n", .{name});
