@@ -1,5 +1,7 @@
 const std = @import("std");
 
+const stderr = std.io.getStdErr().writer();
+
 const debug = @import("debug.zig");
 
 const Chunk = @import("chunk.zig").Chunk;
@@ -64,42 +66,45 @@ pub const VM = struct {
                 },
                 .ADD => {
                     const op = struct {
-                        fn op(a: Value, b: Value) Value {
+                        fn op(a: f64, b: f64) f64 {
                             return a + b;
                         }
                     }.op;
 
-                    self.binaryOp(op);
+                    try self.binaryOp(op);
                 },
                 .SUBTRACT => {
                     const op = struct {
-                        fn op(a: Value, b: Value) Value {
+                        fn op(a: f64, b: f64) f64 {
                             return a - b;
                         }
                     }.op;
 
-                    self.binaryOp(op);
+                    try self.binaryOp(op);
                 },
                 .MULTIPLY => {
                     const op = struct {
-                        fn op(a: Value, b: Value) Value {
+                        fn op(a: f64, b: f64) f64 {
                             return a * b;
                         }
                     }.op;
 
-                    self.binaryOp(op);
+                    try self.binaryOp(op);
                 },
                 .DIVIDE => {
                     const op = struct {
-                        fn op(a: Value, b: Value) Value {
+                        fn op(a: f64, b: f64) f64 {
                             return a / b;
                         }
                     }.op;
 
-                    self.binaryOp(op);
+                    try self.binaryOp(op);
                 },
                 .NEGATE => {
-                    self.stack.push(-self.stack.pop());
+                    if (!self.stack.peek(0).isNumber()) {
+                        return self.runtimeError("operand must be a number", .{});
+                    }
+                    self.stack.push(Value.numberVal(-self.stack.pop().asNumber()));
                 },
                 .RETURN => {
                     debug.printValue(self.stack.pop());
@@ -131,10 +136,27 @@ pub const VM = struct {
         return self.chunk.constants.items[self.readU32()];
     }
 
-    inline fn binaryOp(self: *VM, comptime op: fn (a: Value, b: Value) Value) void {
-        const b = self.stack.pop();
-        const a = self.stack.pop();
-        self.stack.push(op(a, b));
+    inline fn binaryOp(self: *VM, comptime op: fn (a: f64, b: f64) f64) InterpretError!void {
+        if (!self.stack.peek(0).isNumber() or !self.stack.peek(1).isNumber()) {
+            return self.runtimeError("operands must be numbers", .{});
+        }
+
+        const b = self.stack.pop().asNumber();
+        const a = self.stack.pop().asNumber();
+        self.stack.push(Value.numberVal(op(a, b)));
+    }
+
+    fn runtimeError(self: *VM, comptime fmt: []const u8, args: anytype) InterpretError {
+        stderr.print(fmt, args) catch {};
+        stderr.print("\n", .{}) catch {};
+
+        const instruction = @ptrToInt(self.ip) - @ptrToInt(self.chunk.code.items(.byte).ptr) - 1;
+        const line = self.chunk.code.items(.line)[instruction];
+        stderr.print("[line {d}] in script\n", .{line}) catch {};
+
+        self.stack.reset();
+
+        return InterpretError.runtime;
     }
 };
 
@@ -158,6 +180,9 @@ const Stack = struct {
         self.top = bottomPtr(self.storage);
     }
 
+    pub fn peek(self: *Stack, distance: usize) Value {
+        return self.top[1 + distance];
+    }
     pub fn push(self: *Stack, value: Value) void {
         self.top[0] = value;
         self.top -= 1;

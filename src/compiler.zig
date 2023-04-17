@@ -146,7 +146,9 @@ const Compiler = struct {
             for (0..self.tabs) |_| {
                 print(" ", .{});
             }
-            print("{s} ({d})\n", .{ fn_name, n });
+            print("{s} (", .{fn_name});
+            debug.printValue(n);
+            print(")\n", .{});
             self.tabs += 1;
         }
     }
@@ -203,7 +205,7 @@ const Compiler = struct {
         try self.precedence(.ASSIGN);
     }
     fn number(self: *Compiler) !void {
-        const value = std.fmt.parseFloat(f64, self.previous.lexeme) catch unreachable;
+        const value = Value.numberVal(std.fmt.parseFloat(f64, self.previous.lexeme) catch unreachable);
 
         self.traceValue("number", value);
         defer self.untrace();

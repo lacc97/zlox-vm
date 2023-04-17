@@ -44,7 +44,7 @@ pub fn disassembleInstruction(chunk: *const Chunk, off: usize) usize {
 }
 
 pub fn printValue(value: Value) void {
-    std.debug.print("{d}", .{value});
+    std.debug.print("{d}", .{value.asNumber()});
 }
 
 fn printOpName(op: OpCode) void {
