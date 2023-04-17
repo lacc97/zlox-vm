@@ -7,7 +7,7 @@ const OpCode = @import("chunk.zig").OpCode;
 
 const Value = @import("value.zig").Value;
 
-pub const InterpretError = error{ compile, runtime };
+pub const InterpretError = error{ out_of_memory, compile, runtime };
 
 pub const VM = struct {
     ip: [*]const u8,
@@ -24,20 +24,28 @@ pub const VM = struct {
         self.stack.deinit(self.allocator);
     }
 
-    pub fn interpret(self: *VM, source: []const u8) !void {
+    pub fn interpret(self: *VM, source: []const u8) InterpretError!void {
+        const compile = @import("compiler.zig").compile;
+
         defer {
             self.stack.reset();
             self.chunk = undefined;
         }
 
-        var chunk = try @import("compiler.zig").compile(source);
+        var chunk = Chunk.init(self.allocator);
+        defer chunk.deinit();
+
+        if (!(compile(source, &chunk) catch return InterpretError.out_of_memory)) {
+            return InterpretError.compile;
+        }
+
         self.chunk = &chunk;
         self.ip = self.chunk.code.items(.byte).ptr;
 
         try self.run();
     }
 
-    fn run(self: *VM) !void {
+    fn run(self: *VM) InterpretError!void {
         while (true) {
             if (comptime debug.trace_execution) {
                 self.stack.dump();
@@ -46,15 +54,15 @@ pub const VM = struct {
 
             const instruction = @intToEnum(OpCode, self.readU8());
             switch (instruction) {
-                .OP_CONSTANT => {
+                .CONSTANT => {
                     const constant = self.readConstant();
                     self.stack.push(constant);
                 },
-                .OP_CONSTANT_LONG => {
+                .CONSTANT_LONG => {
                     const constant = self.readConstantLong();
                     self.stack.push(constant);
                 },
-                .OP_ADD => {
+                .ADD => {
                     const op = struct {
                         fn op(a: Value, b: Value) Value {
                             return a + b;
@@ -63,7 +71,7 @@ pub const VM = struct {
 
                     self.binaryOp(op);
                 },
-                .OP_SUBTRACT => {
+                .SUBTRACT => {
                     const op = struct {
                         fn op(a: Value, b: Value) Value {
                             return a - b;
@@ -72,7 +80,7 @@ pub const VM = struct {
 
                     self.binaryOp(op);
                 },
-                .OP_MULTIPLY => {
+                .MULTIPLY => {
                     const op = struct {
                         fn op(a: Value, b: Value) Value {
                             return a * b;
@@ -81,7 +89,7 @@ pub const VM = struct {
 
                     self.binaryOp(op);
                 },
-                .OP_DIVIDE => {
+                .DIVIDE => {
                     const op = struct {
                         fn op(a: Value, b: Value) Value {
                             return a / b;
@@ -90,10 +98,10 @@ pub const VM = struct {
 
                     self.binaryOp(op);
                 },
-                .OP_NEGATE => {
+                .NEGATE => {
                     self.stack.push(-self.stack.pop());
                 },
-                .OP_RETURN => {
+                .RETURN => {
                     debug.printValue(self.stack.pop());
                     std.debug.print("\n", .{});
                     return;
@@ -162,11 +170,11 @@ const Stack = struct {
     fn dump(self: *const Stack) void {
         const print = std.debug.print;
 
-        const top_idx = (@ptrToInt(self.top) - @ptrToInt(self.storage.ptr)) / @sizeOf(Value);
+        const tidx = (@ptrToInt(self.top) - @ptrToInt(self.storage.ptr)) / @sizeOf(Value);
 
         print("          ", .{});
 
-        for (self.storage[(top_idx + 1)..]) |value| {
+        for (self.storage[(tidx + 1)..]) |value| {
             print("[ ", .{});
             debug.printValue(value);
             print(" ]", .{});

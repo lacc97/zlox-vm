@@ -6,6 +6,7 @@ const Chunk = @import("chunk.zig").Chunk;
 const Value = @import("value.zig").Value;
 
 pub const trace_execution = @import("build_options").debug_trace_execution;
+pub const print_code = @import("build_options").debug_print_code;
 
 pub fn disassemble(chunk: *Chunk, name: []const u8) void {
     std.debug.print("== {s} == \n", .{name});
@@ -31,8 +32,8 @@ pub fn disassembleInstruction(chunk: *const Chunk, off: usize) usize {
 
     const instruction = chunk.code.items(.byte)[off];
     switch (@intToEnum(OpCode, instruction)) {
-        .OP_CONSTANT, .OP_CONSTANT_LONG => |constant_op| return constantInstruction(constants, bytes, constant_op, off),
-        .OP_ADD, .OP_SUBTRACT, .OP_MULTIPLY, .OP_DIVIDE, .OP_NEGATE, .OP_RETURN => |simple_op| return simpleInstruction(constants, bytes, simple_op, off),
+        .CONSTANT, .CONSTANT_LONG => |constant_op| return constantInstruction(constants, bytes, constant_op, off),
+        .ADD, .SUBTRACT, .MULTIPLY, .DIVIDE, .NEGATE, .RETURN => |simple_op| return simpleInstruction(constants, bytes, simple_op, off),
         _ => {
             std.debug.print("unknown opcode {d}\n", .{instruction});
             return off + 1;
@@ -53,11 +54,11 @@ fn constantInstruction(constants: []const Value, bytes: []const u8, op: OpCode, 
 
     const const_idx = idx_calc: {
         switch (op) {
-            .OP_CONSTANT => {
+            .CONSTANT => {
                 next_off += 1;
                 break :idx_calc @as(usize, bytes[next_off - 1]);
             },
-            .OP_CONSTANT_LONG => {
+            .CONSTANT_LONG => {
                 const idx_bytes = bytes[next_off..];
                 next_off += 4;
                 break :idx_calc @as(usize, std.mem.bytesToValue(u32, idx_bytes[0..4]));

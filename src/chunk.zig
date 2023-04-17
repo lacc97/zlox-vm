@@ -4,14 +4,14 @@ const Value = @import("value.zig").Value;
 const ValueArray = @import("value.zig").ValueArray;
 
 pub const OpCode = enum(u8) {
-    OP_CONSTANT,
-    OP_CONSTANT_LONG,
-    OP_ADD,
-    OP_SUBTRACT,
-    OP_MULTIPLY,
-    OP_DIVIDE,
-    OP_NEGATE,
-    OP_RETURN,
+    CONSTANT,
+    CONSTANT_LONG,
+    ADD,
+    SUBTRACT,
+    MULTIPLY,
+    DIVIDE,
+    NEGATE,
+    RETURN,
     _,
 };
 
@@ -55,6 +55,9 @@ pub const Chunk = struct {
     pub fn writeOp(self: *Chunk, op: OpCode, line: usize) !void {
         return self.write(&[_]u8{@enumToInt(op)}, line);
     }
+    pub fn writeOpU8(self: *Chunk, op: OpCode, b: u8, line: usize) !void {
+        return self.write(&[_]u8{ @enumToInt(op), b }, line);
+    }
 
     pub fn writeConstant(self: *Chunk, value: Value, line: usize) !usize {
         try self.constants.append(self.allocator, value);
@@ -62,10 +65,10 @@ pub const Chunk = struct {
 
         const const_idx = self.constants.items.len - 1;
         if (const_idx > 255) {
-            const bytes = [_]u8{@enumToInt(OpCode.OP_CONSTANT_LONG)} ++ std.mem.toBytes(@intCast(u32, const_idx));
+            const bytes = [_]u8{@enumToInt(OpCode.CONSTANT_LONG)} ++ std.mem.toBytes(@intCast(u32, const_idx));
             try self.write(&bytes, line);
         } else {
-            const bytes = [_]u8{@enumToInt(OpCode.OP_CONSTANT)} ++ [_]u8{@intCast(u8, const_idx)};
+            const bytes = [_]u8{@enumToInt(OpCode.CONSTANT)} ++ [_]u8{@intCast(u8, const_idx)};
             try self.write(&bytes, line);
         }
         return const_idx;

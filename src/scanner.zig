@@ -51,6 +51,7 @@ pub const TokenType = enum(u8) {
 
     // Control.
     ERROR,
+    EOF,
 };
 
 pub const Token = struct {
@@ -78,7 +79,9 @@ pub const Scanner = struct {
         };
     }
 
-    pub fn scanToken(self: *Scanner) ?Token {
+    pub fn deinit(_: *Scanner) void {}
+
+    pub fn scanToken(self: *Scanner) Token {
         self.skipWhitespace();
 
         self.beg = self.cur;
@@ -108,7 +111,7 @@ pub const Scanner = struct {
                 else => self.makeErrorToken("unexpected character"),
             };
         } else {
-            return null;
+            return self.makeToken(.EOF);
         }
     }
 
