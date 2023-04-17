@@ -66,7 +66,17 @@ const Compiler = struct {
         rules.set(.PLUS, ExpressionRule{ .prefix = null, .infix = binary, .precedence = .TERM });
         rules.set(.SLASH, ExpressionRule{ .prefix = null, .infix = binary, .precedence = .FACTOR });
         rules.set(.STAR, ExpressionRule{ .prefix = null, .infix = binary, .precedence = .FACTOR });
+        rules.set(.BANG, ExpressionRule{ .prefix = unary, .infix = null, .precedence = .NONE });
+        rules.set(.BANG_EQUAL, ExpressionRule{ .prefix = null, .infix = binary, .precedence = .EQUALITY });
+        rules.set(.EQUAL_EQUAL, ExpressionRule{ .prefix = null, .infix = binary, .precedence = .EQUALITY });
+        rules.set(.GREATER, ExpressionRule{ .prefix = null, .infix = binary, .precedence = .COMPARISON });
+        rules.set(.GREATER_EQUAL, ExpressionRule{ .prefix = null, .infix = binary, .precedence = .COMPARISON });
+        rules.set(.LESS, ExpressionRule{ .prefix = null, .infix = binary, .precedence = .COMPARISON });
+        rules.set(.LESS_EQUAL, ExpressionRule{ .prefix = null, .infix = binary, .precedence = .COMPARISON });
         rules.set(.NUMBER, ExpressionRule{ .prefix = number, .infix = null, .precedence = .NONE });
+        rules.set(.FALSE, ExpressionRule{ .prefix = literal, .infix = null, .precedence = .NONE });
+        rules.set(.NIL, ExpressionRule{ .prefix = literal, .infix = null, .precedence = .NONE });
+        rules.set(.TRUE, ExpressionRule{ .prefix = literal, .infix = null, .precedence = .NONE });
 
         break :gen_rules rules;
     };
@@ -205,12 +215,20 @@ const Compiler = struct {
         try self.precedence(.ASSIGN);
     }
     fn number(self: *Compiler) !void {
-        const value = Value.numberVal(std.fmt.parseFloat(f64, self.previous.lexeme) catch unreachable);
+        const value = Value.val(std.fmt.parseFloat(f64, self.previous.lexeme) catch unreachable);
 
         self.traceValue("number", value);
         defer self.untrace();
 
         try self.emitConstant(value);
+    }
+    fn literal(self: *Compiler) !void {
+        switch (self.previous.tt) {
+            .FALSE => try self.emitOp(.FALSE),
+            .NIL => try self.emitOp(.NIL),
+            .TRUE => try self.emitOp(.TRUE),
+            else => unreachable,
+        }
     }
     fn grouping(self: *Compiler) !void {
         self.trace("grouping");
@@ -229,6 +247,7 @@ const Compiler = struct {
 
         switch (op) {
             .MINUS => try self.emitOp(.NEGATE),
+            .BANG => try self.emitOp(.NOT),
             else => unreachable,
         }
     }
@@ -243,6 +262,21 @@ const Compiler = struct {
         try self.precedence(rule.precedence.next());
 
         switch (op) {
+            .BANG_EQUAL => {
+                try self.emitOp(.EQUAL);
+                try self.emitOp(.NOT);
+            },
+            .EQUAL_EQUAL => try self.emitOp(.EQUAL),
+            .GREATER => try self.emitOp(.GREATER),
+            .GREATER_EQUAL => {
+                try self.emitOp(.LESS);
+                try self.emitOp(.NOT);
+            },
+            .LESS => try self.emitOp(.LESS),
+            .LESS_EQUAL => {
+                try self.emitOp(.GREATER);
+                try self.emitOp(.NOT);
+            },
             .PLUS => try self.emitOp(.ADD),
             .MINUS => try self.emitOp(.SUBTRACT),
             .STAR => try self.emitOp(.MULTIPLY),

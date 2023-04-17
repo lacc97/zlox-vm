@@ -64,6 +64,32 @@ pub const VM = struct {
                     const constant = self.readConstantLong();
                     self.stack.push(constant);
                 },
+                .NIL => self.stack.push(Value.val(.{})),
+                .TRUE => self.stack.push(Value.val(true)),
+                .FALSE => self.stack.push(Value.val(false)),
+                .EQUAL => {
+                    const b = self.stack.pop();
+                    const a = self.stack.pop();
+                    self.stack.push(Value.val(a.equals(b)));
+                },
+                .GREATER => {
+                    const op = struct {
+                        fn op(a: f64, b: f64) bool {
+                            return a > b;
+                        }
+                    }.op;
+
+                    try self.binaryOp(bool, op);
+                },
+                .LESS => {
+                    const op = struct {
+                        fn op(a: f64, b: f64) bool {
+                            return a < b;
+                        }
+                    }.op;
+
+                    try self.binaryOp(bool, op);
+                },
                 .ADD => {
                     const op = struct {
                         fn op(a: f64, b: f64) f64 {
@@ -71,7 +97,7 @@ pub const VM = struct {
                         }
                     }.op;
 
-                    try self.binaryOp(op);
+                    try self.binaryOp(f64, op);
                 },
                 .SUBTRACT => {
                     const op = struct {
@@ -80,7 +106,7 @@ pub const VM = struct {
                         }
                     }.op;
 
-                    try self.binaryOp(op);
+                    try self.binaryOp(f64, op);
                 },
                 .MULTIPLY => {
                     const op = struct {
@@ -89,7 +115,7 @@ pub const VM = struct {
                         }
                     }.op;
 
-                    try self.binaryOp(op);
+                    try self.binaryOp(f64, op);
                 },
                 .DIVIDE => {
                     const op = struct {
@@ -98,13 +124,16 @@ pub const VM = struct {
                         }
                     }.op;
 
-                    try self.binaryOp(op);
+                    try self.binaryOp(f64, op);
+                },
+                .NOT => {
+                    self.stack.push(Value.val(self.stack.pop().isFalsey()));
                 },
                 .NEGATE => {
                     if (!self.stack.peek(0).isNumber()) {
                         return self.runtimeError("operand must be a number", .{});
                     }
-                    self.stack.push(Value.numberVal(-self.stack.pop().asNumber()));
+                    self.stack.push(Value.val(-self.stack.pop().asNumber()));
                 },
                 .RETURN => {
                     debug.printValue(self.stack.pop());
@@ -136,14 +165,14 @@ pub const VM = struct {
         return self.chunk.constants.items[self.readU32()];
     }
 
-    inline fn binaryOp(self: *VM, comptime op: fn (a: f64, b: f64) f64) InterpretError!void {
+    inline fn binaryOp(self: *VM, comptime Return: type, comptime op: fn (a: f64, b: f64) Return) InterpretError!void {
         if (!self.stack.peek(0).isNumber() or !self.stack.peek(1).isNumber()) {
             return self.runtimeError("operands must be numbers", .{});
         }
 
         const b = self.stack.pop().asNumber();
         const a = self.stack.pop().asNumber();
-        self.stack.push(Value.numberVal(op(a, b)));
+        self.stack.push(Value.val(op(a, b)));
     }
 
     fn runtimeError(self: *VM, comptime fmt: []const u8, args: anytype) InterpretError {

@@ -1,5 +1,7 @@
 const std = @import("std");
 
+const print = std.debug.print;
+
 const OpCode = @import("chunk.zig").OpCode;
 const Chunk = @import("chunk.zig").Chunk;
 
@@ -35,7 +37,7 @@ pub fn disassembleInstruction(chunk: *const Chunk, off: usize) usize {
     const instruction = chunk.code.items(.byte)[off];
     switch (@intToEnum(OpCode, instruction)) {
         .CONSTANT, .CONSTANT_LONG => |constant_op| return constantInstruction(constants, bytes, constant_op, off),
-        .ADD, .SUBTRACT, .MULTIPLY, .DIVIDE, .NEGATE, .RETURN => |simple_op| return simpleInstruction(constants, bytes, simple_op, off),
+        .NIL, .TRUE, .FALSE, .EQUAL, .GREATER, .LESS, .ADD, .SUBTRACT, .MULTIPLY, .DIVIDE, .NOT, .NEGATE, .RETURN => |simple_op| return simpleInstruction(constants, bytes, simple_op, off),
         _ => {
             std.debug.print("unknown opcode {d}\n", .{instruction});
             return off + 1;
@@ -44,7 +46,11 @@ pub fn disassembleInstruction(chunk: *const Chunk, off: usize) usize {
 }
 
 pub fn printValue(value: Value) void {
-    std.debug.print("{d}", .{value.asNumber()});
+    switch (value) {
+        .nil => print("nil", .{}),
+        .boolean => |b| print("{}", .{b}),
+        .number => |n| print("{d}", .{n}),
+    }
 }
 
 fn printOpName(op: OpCode) void {
