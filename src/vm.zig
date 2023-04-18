@@ -103,6 +103,7 @@ pub const VM = struct {
                 .NIL => self.stack.push(Value.val(.{})),
                 .TRUE => self.stack.push(Value.val(true)),
                 .FALSE => self.stack.push(Value.val(false)),
+                .POP => _ = self.stack.pop(),
                 .EQ => {
                     const b = self.stack.pop();
                     const a = self.stack.pop();

@@ -206,12 +206,19 @@ const Compiler = struct {
     fn statement(self: *Compiler) !void {
         if (self.match(.PRINT)) {
             try self.printStatement();
+        } else {
+            try self.expressionStatement();
         }
     }
     fn printStatement(self: *Compiler) !void {
         try self.expression();
-        self.consume(.SEMICOLON, "expected ';' after statement");
+        self.consume(.SEMICOLON, "expected ';' after expression");
         try self.emitOp(.PRINT);
+    }
+    fn expressionStatement(self: *Compiler) !void {
+        try self.expression();
+        self.consume(.SEMICOLON, "expected ';' after expression");
+        try self.emitOp(.POP);
     }
 
     fn expression(self: *Compiler) !void {

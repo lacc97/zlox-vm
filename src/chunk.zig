@@ -9,6 +9,7 @@ pub const OpCode = enum(u8) {
     NIL,
     TRUE,
     FALSE,
+    POP,
     EQ,
     GT,
     LT,
