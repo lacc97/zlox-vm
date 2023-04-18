@@ -50,7 +50,7 @@ pub fn printValue(value: Value) void {
 }
 
 fn printOpName(op: OpCode) void {
-    std.debug.print("{s:-<24}", .{@tagName(op)});
+    std.debug.print("{s: <10}", .{@tagName(op)});
 }
 
 fn constantInstruction(constants: []const Value, bytes: []const u8, op: OpCode, off: usize) usize {
@@ -71,7 +71,7 @@ fn constantInstruction(constants: []const Value, bytes: []const u8, op: OpCode, 
         }
     };
     printOpName(op);
-    std.debug.print("-{d:->8} '", .{const_idx});
+    std.debug.print(" {d: >8} '", .{const_idx});
     printValue(constants[const_idx]);
     std.debug.print("'\n", .{});
     return next_off;
