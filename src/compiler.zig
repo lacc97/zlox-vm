@@ -78,6 +78,7 @@ const Compiler = struct {
         rules.set(.GREATER_EQUAL, ExpressionRule{ .prefix = null, .infix = binary, .precedence = .COMPARISON });
         rules.set(.LESS, ExpressionRule{ .prefix = null, .infix = binary, .precedence = .COMPARISON });
         rules.set(.LESS_EQUAL, ExpressionRule{ .prefix = null, .infix = binary, .precedence = .COMPARISON });
+        rules.set(.IDENTIFIER, ExpressionRule{ .prefix = variable, .infix = null, .precedence = .NONE });
         rules.set(.STRING, ExpressionRule{ .prefix = string, .infix = null, .precedence = .NONE });
         rules.set(.NUMBER, ExpressionRule{ .prefix = number, .infix = null, .precedence = .NONE });
         rules.set(.FALSE, ExpressionRule{ .prefix = literal, .infix = null, .precedence = .NONE });
@@ -137,6 +138,10 @@ const Compiler = struct {
     fn getRule(tt: TokenType) *const ExpressionRule {
         return expression_rules.getPtrConst(tt);
     }
+    fn makeConstant(self: *Compiler, value: Value) !void {
+        _ = value;
+        _ = self;
+    }
     fn emitConstant(self: *Compiler, value: Value) !void {
         _ = self.currentChunk().writeConstant(value, self.previous.line) catch |err| {
             stderr.print("failed to emit", .{}) catch {};
@@ -151,6 +156,12 @@ const Compiler = struct {
     }
     fn emitOpU8(self: *Compiler, op: OpCode, b: u8) !void {
         self.currentChunk().writeOpU8(op, b, self.previous.line) catch |err| {
+            stderr.print("failed to emit", .{}) catch {};
+            return err;
+        };
+    }
+    fn emitOpU32(self: *Compiler, op: OpCode, u: u32) !void {
+        self.currentChunk().writeOpU32(op, u, self.previous.line) catch |err| {
             stderr.print("failed to emit", .{}) catch {};
             return err;
         };
@@ -200,8 +211,56 @@ const Compiler = struct {
         }
     }
 
+    fn synchronize(self: *Compiler) void {
+        self.in_panic = false;
+
+        while (self.current.tt != .EOF) {
+            if (self.previous.tt == .SEMICOLON) return;
+            switch (self.current.tt) {
+                .CLASS, .FUN, .VAR, .FOR, .IF, .WHILE, .PRINT, .RET => return,
+                else => _ = self.advance(),
+            }
+        }
+    }
+
     fn declaration(self: *Compiler) !void {
-        try self.statement();
+        if (self.match(.VAR)) {
+            try self.varDeclaration();
+        } else {
+            try self.statement();
+        }
+
+        if (self.in_panic) self.synchronize();
+    }
+    fn varDeclaration(self: *Compiler) !void {
+        const global = try self.parseVariable("expected variable name");
+
+        if (self.match(.EQUAL)) {
+            try self.expression();
+        } else {
+            try self.emitOp(.NIL);
+        }
+
+        self.consume(.SEMICOLON, "expected ';' after variable declaration");
+
+        try self.defineVariable(global);
+    }
+    fn parseVariable(self: *Compiler, errmsg: []const u8) !u32 {
+        self.consume(.IDENTIFIER, errmsg);
+        return self.identifierConstant(&self.previous);
+    }
+    fn identifierConstant(self: *Compiler, tok: *const Token) !u32 {
+        const s = try self.mem.dupeString(tok.lexeme);
+        const s_obj = try self.mem.createObj(.string);
+        s_obj.string = try self.mem.internString(s);
+        return try self.currentChunk().addConstant(Value.val(s_obj));
+    }
+    fn defineVariable(self: *Compiler, global_id: u32) !void {
+        if (global_id > 255) {
+            try self.emitOpU32(.DEF_GLOBAL_LONG, global_id);
+        } else {
+            try self.emitOpU8(.DEF_GLOBAL, @intCast(u8, global_id));
+        }
     }
     fn statement(self: *Compiler) !void {
         if (self.match(.PRINT)) {
@@ -261,6 +320,17 @@ const Compiler = struct {
         const s_obj = try self.mem.createObj(.string);
         s_obj.string = try self.mem.internString(s);
         try self.emitConstant(Value.val(s_obj));
+    }
+    fn variable(self: *Compiler) !void {
+        try self.namedVariable(&self.previous);
+    }
+    fn namedVariable(self: *Compiler, tok: *const Token) !void {
+        const arg = try self.identifierConstant(tok);
+        if (arg > 255) {
+            try self.emitOpU32(.GET_GLOBAL_LONG, arg);
+        } else {
+            try self.emitOpU8(.GET_GLOBAL, @intCast(u8, arg));
+        }
     }
     fn literal(self: *Compiler) !void {
         switch (self.previous.tt) {

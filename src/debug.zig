@@ -36,7 +36,7 @@ pub fn disassembleInstruction(chunk: *const Chunk, off: usize) usize {
 
     const instruction = chunk.code.items(.byte)[off];
     switch (@intToEnum(OpCode, instruction)) {
-        .CONST, .CONST_LONG => |constant_op| return constantInstruction(constants, bytes, constant_op, off),
+        .CONST, .CONST_LONG, .GET_GLOBAL, .GET_GLOBAL_LONG, .DEF_GLOBAL, .DEF_GLOBAL_LONG => |constant_op| return constantInstruction(constants, bytes, constant_op, off),
         .NIL, .TRUE, .FALSE, .POP, .EQ, .GT, .LT, .ADD, .SUB, .MUL, .DIV, .NOT, .NEG, .PRINT, .RET => |simple_op| return simpleInstruction(constants, bytes, simple_op, off),
         _ => {
             std.debug.print("unknown opcode {d}\n", .{instruction});
@@ -50,7 +50,7 @@ pub fn printValue(value: Value) void {
 }
 
 fn printOpName(op: OpCode) void {
-    std.debug.print("{s: <10}", .{@tagName(op)});
+    std.debug.print("{s: <15}", .{@tagName(op)});
 }
 
 fn constantInstruction(constants: []const Value, bytes: []const u8, op: OpCode, off: usize) usize {
@@ -58,11 +58,11 @@ fn constantInstruction(constants: []const Value, bytes: []const u8, op: OpCode, 
 
     const const_idx = idx_calc: {
         switch (op) {
-            .CONST => {
+            .CONST, .GET_GLOBAL, .DEF_GLOBAL => {
                 next_off += 1;
                 break :idx_calc @as(usize, bytes[next_off - 1]);
             },
-            .CONST_LONG => {
+            .CONST_LONG, .GET_GLOBAL_LONG, .DEF_GLOBAL_LONG => {
                 const idx_bytes = bytes[next_off..];
                 next_off += 4;
                 break :idx_calc @as(usize, std.mem.bytesToValue(u32, idx_bytes[0..4]));

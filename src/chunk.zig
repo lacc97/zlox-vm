@@ -10,6 +10,10 @@ pub const OpCode = enum(u8) {
     TRUE,
     FALSE,
     POP,
+    GET_GLOBAL,
+    GET_GLOBAL_LONG,
+    DEF_GLOBAL,
+    DEF_GLOBAL_LONG,
     EQ,
     GT,
     LT,
@@ -47,6 +51,11 @@ pub const Chunk = struct {
         return self.code.len;
     }
 
+    pub fn addConstant(self: *Chunk, value: Value) !u32 {
+        try self.constants.append(self.allocator, value);
+        return @intCast(u32, self.constants.items.len - 1);
+    }
+
     pub fn write(self: *Chunk, bytes: []const u8, line: usize) !void {
         const old_len = self.code.len;
         try self.code.resize(self.allocator, old_len + bytes.len);
@@ -65,20 +74,22 @@ pub const Chunk = struct {
         return self.write(&[_]u8{@enumToInt(op)}, line);
     }
     pub fn writeOpU8(self: *Chunk, op: OpCode, b: u8, line: usize) !void {
-        return self.write(&[_]u8{ @enumToInt(op), b }, line);
+        const bytes = [_]u8{@enumToInt(op)} ++ [_]u8{b};
+        return self.write(&bytes, line);
+    }
+    pub fn writeOpU32(self: *Chunk, op: OpCode, u: u32, line: usize) !void {
+        const bytes = [_]u8{@enumToInt(op)} ++ std.mem.toBytes(u);
+        return self.write(&bytes, line);
     }
 
-    pub fn writeConstant(self: *Chunk, value: Value, line: usize) !usize {
-        try self.constants.append(self.allocator, value);
+    pub fn writeConstant(self: *Chunk, value: Value, line: usize) !u32 {
+        const const_idx = try self.addConstant(value);
         errdefer _ = self.constants.pop(); // clean up constants
 
-        const const_idx = self.constants.items.len - 1;
         if (const_idx > 255) {
-            const bytes = [_]u8{@enumToInt(OpCode.CONST_LONG)} ++ std.mem.toBytes(@intCast(u32, const_idx));
-            try self.write(&bytes, line);
+            try self.writeOpU32(.CONST_LONG, const_idx, line);
         } else {
-            const bytes = [_]u8{@enumToInt(OpCode.CONST)} ++ [_]u8{@intCast(u8, const_idx)};
-            try self.write(&bytes, line);
+            try self.writeOpU8(.CONST, @intCast(u8, const_idx), line);
         }
         return const_idx;
     }

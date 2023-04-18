@@ -53,11 +53,14 @@ pub const VM = struct {
 
     mem: Mem,
 
+    globals: std.StringHashMapUnmanaged(Value),
+
     pub fn init(allocator: std.mem.Allocator) !VM {
-        return VM{ .ip = undefined, .stack = try Stack.init(allocator, 9), .chunk = undefined, .mem = Mem.init(allocator) };
+        return VM{ .ip = undefined, .stack = try Stack.init(allocator, 9), .chunk = undefined, .mem = Mem.init(allocator), .globals = std.StringHashMapUnmanaged(Value){} };
     }
 
     pub fn deinit(self: *VM) void {
+        self.globals.deinit(self.mem.allocator); // string keys are destroyed by the string intern system, value by the GC
         self.mem.deinit();
         self.stack.deinit(self.mem.allocator);
     }
@@ -104,6 +107,34 @@ pub const VM = struct {
                 .TRUE => self.stack.push(Value.val(true)),
                 .FALSE => self.stack.push(Value.val(false)),
                 .POP => _ = self.stack.pop(),
+                .GET_GLOBAL => {
+                    const name = self.readString();
+                    if (self.globals.get(name)) |value| {
+                        self.stack.push(value);
+                    } else {
+                        return self.runtimeError("undefined variable '{s}'", .{name});
+                    }
+                },
+                .GET_GLOBAL_LONG => {
+                    const name = self.readStringLong();
+                    if (self.globals.get(name)) |value| {
+                        self.stack.push(value);
+                    } else {
+                        return self.runtimeError("undefined variable '{s}'", .{name});
+                    }
+                },
+                .DEF_GLOBAL => {
+                    const name = self.readString();
+                    // TODO: deal with collision
+                    const res = self.globals.getOrPut(self.mem.allocator, name) catch return InterpretError.out_of_memory;
+                    res.value_ptr.* = self.stack.pop();
+                },
+                .DEF_GLOBAL_LONG => {
+                    const name = self.readStringLong();
+                    // TODO: deal with collision
+                    const res = self.globals.getOrPut(self.mem.allocator, name) catch return InterpretError.out_of_memory;
+                    res.value_ptr.* = self.stack.pop();
+                },
                 .EQ => {
                     const b = self.stack.pop();
                     const a = self.stack.pop();
@@ -209,6 +240,12 @@ pub const VM = struct {
     }
     inline fn readConstantLong(self: *VM) Value {
         return self.chunk.constants.items[self.readU32()];
+    }
+    inline fn readString(self: *VM) []const u8 {
+        return self.readConstant().asString();
+    }
+    inline fn readStringLong(self: *VM) []const u8 {
+        return self.readConstantLong().asString();
     }
 
     inline fn binaryOp(self: *VM, comptime Return: type, comptime op: fn (a: f64, b: f64) Return) InterpretError!void {
