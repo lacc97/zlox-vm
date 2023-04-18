@@ -18,16 +18,31 @@ pub const VM = struct {
     pub const Mem = struct {
         allocator: std.mem.Allocator,
         obj_allocator: ObjAllocator,
+        string_allocator: StringIntern,
 
         pub fn init(allocator: std.mem.Allocator) Mem {
-            return Mem{ .allocator = allocator, .obj_allocator = ObjAllocator.init(allocator) };
+            return Mem{ .allocator = allocator, .obj_allocator = ObjAllocator.init(allocator), .string_allocator = StringIntern.init(allocator) };
         }
         pub fn deinit(self: *Mem) void {
             self.obj_allocator.deinit();
+            self.string_allocator.deinit();
         }
 
         pub fn createObj(self: *Mem, comptime ot: ObjType) !*ObjAllocator.Subtype(ot) {
             return self.obj_allocator.create(ot);
+        }
+
+        pub fn allocString(self: *Mem, len: usize) ![]u8 {
+            return self.string_allocator.alloc(len);
+        }
+        pub fn concatStrings(self: *Mem, strs: []const []const u8) ![]u8 {
+            return std.mem.concat(self.string_allocator.allocator, u8, strs);
+        }
+        pub fn dupeString(self: *Mem, str: []const u8) ![]u8 {
+            return self.string_allocator.allocator.dupe(u8, str);
+        }
+        pub fn internString(self: *Mem, str: []const u8) ![]const u8 {
+            return self.string_allocator.intern(str);
         }
     };
 
@@ -118,9 +133,9 @@ pub const VM = struct {
                     } else if (self.stack.peek(0).isString() and self.stack.peek(1).isString()) {
                         const b = self.stack.pop().asString();
                         const a = self.stack.pop().asString();
-                        const c = std.mem.concat(self.mem.allocator, u8, &.{ a, b }) catch return InterpretError.out_of_memory;
+                        const c = self.mem.concatStrings(&.{ a, b }) catch return InterpretError.out_of_memory;
                         const c_obj = self.mem.createObj(.string) catch return InterpretError.out_of_memory;
-                        c_obj.string = c;
+                        c_obj.string = self.mem.internString(c) catch return InterpretError.out_of_memory;
                         self.stack.push(Value.val(c_obj));
                     } else {
                         return self.runtimeError("operands must be two numbers or two strings", .{});
@@ -264,5 +279,34 @@ const Stack = struct {
         }
 
         print("\n", .{});
+    }
+};
+
+pub const StringIntern = struct {
+    table: std.StringHashMapUnmanaged(void),
+    allocator: std.mem.Allocator,
+
+    pub fn init(allocator: std.mem.Allocator) StringIntern {
+        return StringIntern{ .table = std.StringHashMapUnmanaged(void){}, .allocator = allocator };
+    }
+    pub fn deinit(self: *StringIntern) void {
+        var it = self.table.keyIterator();
+        while (it.next()) |k| {
+            self.allocator.free(k.*);
+        }
+        self.table.deinit(self.allocator);
+    }
+
+    pub fn alloc(self: *StringIntern, len: usize) ![]u8 {
+        return self.allocator.alloc(u8, len);
+    }
+    pub fn intern(self: *StringIntern, s: []const u8) ![]const u8 {
+        const res = try self.table.getOrPut(self.allocator, s);
+
+        if (res.found_existing) {
+            self.allocator.free(s);
+        }
+
+        return res.key_ptr.*;
     }
 };

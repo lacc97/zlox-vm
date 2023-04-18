@@ -92,21 +92,17 @@ pub const Value = union(ValueType) {
     pub inline fn equals(self: Value, other: Value) bool {
         if (@as(ValueType, self) != @as(ValueType, other)) return false;
 
-        return switch (self) {
-            .nil => true,
-            .boolean => |a| (a == other.asBool()),
-            .number => |a| (a == other.asNumber()),
+        switch (self) {
+            .nil => return true,
+            .boolean => |a| return (a == other.asBool()),
+            .number => |a| return (a == other.asNumber()),
             .object => |a| {
                 if (self.object.type != other.object.type) return false;
                 switch (a.type) {
-                    .string => {
-                        const a_str = self.asString();
-                        const b_str = other.asString();
-                        return std.mem.eql(u8, a_str, b_str);
-                    },
+                    .string => return (self.asString().ptr == other.asString().ptr),
                 }
             },
-        };
+        }
     }
 
     pub inline fn asBool(self: Value) bool {
@@ -121,7 +117,7 @@ pub const Value = union(ValueType) {
     pub inline fn asStringObject(self: Value) *ObjString {
         return @fieldParentPtr(ObjString, "base", self.asObject());
     }
-    pub inline fn asString(self: Value) []u8 {
+    pub inline fn asString(self: Value) []const u8 {
         return self.asStringObject().string;
     }
 };

@@ -34,5 +34,5 @@ pub const ObjAllocator = struct {
 
 pub const ObjString = struct {
     base: Obj,
-    string: []u8,
+    string: []const u8,
 };

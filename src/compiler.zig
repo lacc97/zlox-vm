@@ -229,9 +229,9 @@ const Compiler = struct {
         try self.emitConstant(value);
     }
     fn string(self: *Compiler) !void {
-        const s = try self.mem.allocator.dupe(u8, self.previous.lexeme[1..(self.previous.lexeme.len - 1)]);
+        const s = try self.mem.dupeString(self.previous.lexeme[1..(self.previous.lexeme.len - 1)]);
         const s_obj = try self.mem.createObj(.string);
-        s_obj.string = s;
+        s_obj.string = try self.mem.internString(s);
         try self.emitConstant(Value.val(s_obj));
     }
     fn literal(self: *Compiler) !void {
