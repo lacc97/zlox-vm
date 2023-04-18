@@ -37,7 +37,7 @@ pub fn disassembleInstruction(chunk: *const Chunk, off: usize) usize {
     const instruction = chunk.code.items(.byte)[off];
     switch (@intToEnum(OpCode, instruction)) {
         .CONST, .CONST_LONG => |constant_op| return constantInstruction(constants, bytes, constant_op, off),
-        .NIL, .TRUE, .FALSE, .EQ, .GT, .LT, .ADD, .SUB, .MUL, .DIV, .NOT, .NEG, .RET => |simple_op| return simpleInstruction(constants, bytes, simple_op, off),
+        .NIL, .TRUE, .FALSE, .EQ, .GT, .LT, .ADD, .SUB, .MUL, .DIV, .NOT, .NEG, .PRINT, .RET => |simple_op| return simpleInstruction(constants, bytes, simple_op, off),
         _ => {
             std.debug.print("unknown opcode {d}\n", .{instruction});
             return off + 1;

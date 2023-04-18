@@ -1,5 +1,6 @@
 const std = @import("std");
 
+const stdout = std.io.getStdOut().writer();
 const stderr = std.io.getStdErr().writer();
 
 const debug = @import("debug.zig");
@@ -177,9 +178,11 @@ pub const VM = struct {
                     }
                     self.stack.push(Value.val(-self.stack.pop().asNumber()));
                 },
+                .PRINT => {
+                    @import("value.zig").printValue(stdout, self.stack.pop());
+                    stdout.print("\n", .{}) catch {};
+                },
                 .RET => {
-                    debug.printValue(self.stack.pop());
-                    std.debug.print("\n", .{});
                     return;
                 },
 

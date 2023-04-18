@@ -122,6 +122,14 @@ const Compiler = struct {
             self.onErrorAtCurrent(msg);
         }
     }
+    pub fn match(self: *Compiler, tt: TokenType) bool {
+        if (!self.check(tt)) return false;
+        _ = self.advance();
+        return true;
+    }
+    pub fn check(self: *Compiler, tt: TokenType) bool {
+        return self.current.tt == tt;
+    }
 
     fn currentChunk(self: *Compiler) *Chunk {
         return self.chunk;
@@ -192,6 +200,26 @@ const Compiler = struct {
         }
     }
 
+    fn declaration(self: *Compiler) !void {
+        try self.statement();
+    }
+    fn statement(self: *Compiler) !void {
+        if (self.match(.PRINT)) {
+            try self.printStatement();
+        }
+    }
+    fn printStatement(self: *Compiler) !void {
+        try self.expression();
+        self.consume(.SEMICOLON, "expected ';' after statement");
+        try self.emitOp(.PRINT);
+    }
+
+    fn expression(self: *Compiler) !void {
+        self.trace("expression");
+        defer self.untrace();
+
+        try self.precedence(.ASSIGN);
+    }
     fn precedence(self: *Compiler, p: Precedence) !void {
         self.tracePrecedence("precedence", p);
         defer self.untrace();
@@ -212,13 +240,6 @@ const Compiler = struct {
                 self.onError("expected expression");
             }
         }
-    }
-
-    fn expression(self: *Compiler) !void {
-        self.trace("expression");
-        defer self.untrace();
-
-        try self.precedence(.ASSIGN);
     }
     fn number(self: *Compiler) !void {
         const value = Value.val(std.fmt.parseFloat(f64, self.previous.lexeme) catch unreachable);
@@ -324,7 +345,9 @@ pub fn compile(mem: *VM.Mem, source: []const u8, chunk: *Chunk) !bool {
     var compiler = Compiler.init(mem, source, chunk);
 
     compiler.advance();
-    try compiler.expression();
+    while (!compiler.match(.EOF)) {
+        try compiler.declaration();
+    }
 
     return compiler.deinit();
 }
